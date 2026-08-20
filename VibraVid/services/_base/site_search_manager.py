@@ -188,11 +188,15 @@ def base_process_search_result(select_title: Optional[Entries], download_film_fu
     # Populate context_tracker
     context_tracker.title = getattr(select_title, 'name', None)
     context_tracker.media_type = getattr(select_title, 'type', 'Film')
-    
+
     try:
         context_tracker.site_name = site_constants.SITE_NAME
     except Exception:
         pass
+
+    # Ask which audio/subtitle combination to download — works for movies, series and songs alike
+    from VibraVid.cli.command.track_preset import prompt_track_preset
+    prompt_track_preset()
 
     # Handle TV series
     if str(select_title.type).lower() in ['tv', 'serie', 'ova', 'ona', 'show', 'tv short', 'special']:

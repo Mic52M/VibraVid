@@ -21,6 +21,7 @@ from VibraVid.upload.version import __version__, __title__
 
 from VibraVid.cli.command.global_search import global_search as call_global_search
 from VibraVid.cli.command.download import handle_direct_download
+from VibraVid.cli.command import track_preset
 
 
 console = Console()
@@ -44,6 +45,16 @@ def force_exit():
     """Force script termination in any context."""
     logger.info("Forcing script termination.")
     sys.exit(0)
+
+
+def track_preset_help(per_row: int = 4) -> str:
+    """Build the inline listing of available track presets for --tracks."""
+    entries = [
+        f"{p['key']}={p['slug']}"
+        for p in track_preset.TRACK_PRESETS if p['audio'] is not None
+    ]
+    rows = ["  ".join(entries[i:i + per_row]) for i in range(0, len(entries), per_row)]
+    return "\n  ".join(rows)
 
 
 def setup_argument_parser(search_functions):
@@ -80,6 +91,8 @@ def setup_argument_parser(search_functions):
     track_group.add_argument('-sv', '--video', type=str, metavar='SPEC', help='Video track filter (e.g. "best", "1080p")')
     track_group.add_argument('-sa', '--audio', type=str, metavar='SPEC', help='Audio track filter (e.g. "ita|it")')
     track_group.add_argument('-ss', '--subtitle', type=str, metavar='SPEC', help='Subtitle track filter (e.g. "ita|eng")')
+    track_group.add_argument('--tracks', type=str, metavar='PRESET', help=f'Track preset, skips the prompt\n  {track_preset_help()}')
+    track_group.add_argument('--no-tracks-prompt', dest='no_tracks_prompt', action='store_true', help='Never ask for a track preset, use config values')
 
     # ── Download options
     dl_opts = parser.add_argument_group('Download options')
@@ -144,6 +157,12 @@ def apply_config_updates(args):
     if persistent_updates:
         logger.info(f"Applying persistent config updates: {persistent_updates}")
         config_manager.save_config()
+
+    # Explicit track filters or an opt-out flag take precedence over the interactive prompt
+    if getattr(args, 'tracks', None):
+        track_preset.apply_named_preset(args.tracks)
+    elif getattr(args, 'no_tracks_prompt', False) or args.audio is not None or args.subtitle is not None:
+        track_preset.suppress()
 
 
 def build_function_mappings(search_functions):
@@ -366,6 +385,9 @@ def main():
                 user_response = msg.ask("\n[cyan]Do you want to perform another search? (y/n)", choices=["y", "n"], default="n")
                 if user_response.lower() != 'y':
                     break
+
+                # New search: ask for the track preset again
+                track_preset.reset()
 
             force_exit()
 
